@@ -1,11 +1,13 @@
 use reqwest;
 use http::{HeaderMap};
 use serde::{Serialize, Deserialize};
+use std::io::{Read, Write};
 use std::{cmp::Ordering, str::FromStr};
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Datelike, Duration, Local};
 use lettre::{Message, SmtpTransport, Transport, message::Mailbox};
 use lettre::transport::smtp::authentication::Credentials;
 use std::env;
+use std::fs::OpenOptions;
 
 #[derive(Serialize, Deserialize)]
 struct Entity {
@@ -16,8 +18,29 @@ struct Entity {
 async fn main() {
     const URL: &str = "http://192.168.0.25:8123/api/states/sensor.health";
     let token: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI4MzgyOTFhNDY2YjQ0YTU3OTcxNDFjZDQ1YjI2Mzg5ZSIsImlhdCI6MTc3ODY3Njg3MywiZXhwIjoyMDk0MDM2ODczfQ.vHvX8TvnxdD9QNZ5kQ3og1qxukp_Nuugl1GLsRE-NIY";
+    const FILE_NAME: &str = "last_sent.txt";
     const MAIL_PASSWORD_KEY: &str= "MAIL_PASSWORD_KEY";
     let mail_password: String;
+    let current_time: DateTime<Local> = Local::now();
+    let mut last_sent: Option<DateTime<Local>> = Option::None;
+
+    match OpenOptions::new().read(true).write(true).create(true).open(FILE_NAME)
+    {
+        Ok(mut file) => {
+            let mut buffer = String::new();
+            file.read_to_string(&mut buffer).unwrap();
+            match chrono::DateTime::from_str(buffer.as_mut_str()){
+                Ok(v) => last_sent = Option::Some(v),
+                Err(_e) => print!("not value parsed from file")
+            }
+        },
+        Err(e) => panic!("Could not open file: {e}")
+    }
+
+    if !last_sent.is_none() && last_sent.unwrap().day() == current_time.day(){
+        println!("Email was sent today");
+        return;
+    }
 
     match env::var(MAIL_PASSWORD_KEY){
         Ok(val) => mail_password = val,
@@ -34,8 +57,7 @@ async fn main() {
         .send().await;
 
     let mut last_reported: Option<DateTime<Local>> = None;
-    let current_time: DateTime<Local> = Local::now();
-    
+
     match get_result{
         Ok(value) => {
             let text_response = value.text().await.unwrap();
@@ -74,9 +96,26 @@ async fn main() {
             .credentials(creds)
             .build();
 
+        let mut should_write_file = false;
+
         match mailer.send(&email){
-            Ok(_) => println!("Email sent"),
+            Ok(_) =>
+            {
+                should_write_file = true;
+                println!("Email sent");
+            },
             Err(e) => println!("Could not sent: {:?}", e)
+        }
+
+        if should_write_file {
+            match OpenOptions::new().write(true).open(FILE_NAME)
+                {
+                    Ok(mut file) => {
+                        let buffer = current_time.to_string();
+                        file.write(buffer.as_bytes()).unwrap();
+                    },
+                    Err(e) => panic!("Could not open file: {e}")
+                }
         }
 
     }

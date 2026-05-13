@@ -4,8 +4,9 @@
 
 #define PUBLISH_TOPIC "termotanque/temperature"
 #define SUBSCRIBE_TOPIC "termotanque/relay"
+#define PUBLISH_KEPP_ALIVE_TOPIC "termotanque/health"
 
-static char last_state_char[32];
+static const char* ON = "ON";
 static const char* TAG = "MQTT";
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -16,12 +17,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             esp_mqtt_client_subscribe_single(event->client, SUBSCRIBE_TOPIC, 1);
         break;
         case MQTT_EVENT_DATA:
-        //latest message
+            ESP_LOGI(TAG, "Got event data");
             if (strcmp(event->topic, SUBSCRIBE_TOPIC) == 0){
-                int len = fmin(event->data_len, sizeof(last_state) - 1);
-                memcpy(last_state_char, event->data, len);
-                last_state_char[len] = 0;
-                if (strcmp(last_state_char, "ON") == 0){
+                if (strncmp(event->data, ON, 2) == 0){
                     last_state.on = true;
                 } else {
                     last_state.on = false;
@@ -55,4 +53,11 @@ void mqtt_send_temperature(esp_mqtt_client_handle_t client, int8_t temperature){
     char buffer[10];
     snprintf(buffer, sizeof(buffer), "%d", temperature);
     esp_mqtt_client_publish(client, PUBLISH_TOPIC, buffer, 0, 1, 0);
+}
+
+void mqtt_send_keep_alive(esp_mqtt_client_handle_t client, int32_t time){
+    ESP_LOGI(TAG, "%ld", time);
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%ld", time);
+    esp_mqtt_client_publish(client, PUBLISH_KEPP_ALIVE_TOPIC, buffer, 0, 1, 0);
 }

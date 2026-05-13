@@ -1,0 +1,13 @@
+[package]
+name = "alerting"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.44"
+http = "1.4.0"
+lettre = "0.11.21"
+reqwest = "0.13.3"
+serde = {version="1.0.228", features=["default","derive"] }
+serde_json = "1.0.149"
+tokio = {version="1.52.2", features=["full"]}

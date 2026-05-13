@@ -12,7 +12,7 @@
 #include "mq.h"
 
 #define LED_GPIO GPIO_NUM_2
-#define RELAY_GPIO GPIO_NUM_3
+#define RELAY_GPIO GPIO_NUM_12
 #define ONEWIRE_GPIO_PIN  GPIO_NUM_0
 
 #define TAG "MAIN_APP"
@@ -22,6 +22,8 @@
 
 #define STATIC_ON_TIME 57600 //16hs
 #define STATIC_OFF_TIME 68400 //19hs
+
+relay_data last_state;
 
 const char* WIFI_SSID = "HITRON-4A50_EXT";
 const char* WIFI_PASSWORD =  "N8DM8CGH12M1";
@@ -49,7 +51,10 @@ void app_main()
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
 
-    //gpio_set_level(LED_GPIO, 1); // LED ON
+    gpio_hold_dis(RELAY_GPIO);
+    gpio_hold_dis(LED_GPIO);
+
+    gpio_deep_sleep_hold_en();
     
     onewire_bus_handle_t termometro = init_termometro(ONEWIRE_GPIO_PIN);
     int temperature = read_temperature(termometro, callback_delay);
@@ -60,7 +65,11 @@ void app_main()
 
         esp_mqtt_client_handle_t mqtt;
         if(mqtt_init(BROKER_URL, &mqtt) == ESP_OK){
+            //wait for mqtt to get latest msj
+            vTaskDelay(pdMS_TO_TICKS(1000));
             mqtt_send_temperature(mqtt, temperature);
+            mqtt_send_keep_alive(mqtt, get_time());
+            
             if(last_state.on)
             {
                 gpio_set_level(LED_GPIO, 1); // LED ON
@@ -87,6 +96,10 @@ void app_main()
             gpio_set_level(RELAY_GPIO, 0);
         }
     }
+
+    gpio_hold_en(RELAY_GPIO);
+    gpio_hold_en(LED_GPIO);
+    vTaskDelay(pdMS_TO_TICKS(5000));
 
     gpio_set_level(LED_GPIO, 0); // LED OFF
     sleep_enter_time = esp_timer_get_time();

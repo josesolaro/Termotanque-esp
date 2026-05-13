@@ -74,10 +74,10 @@ async fn main() {
             .credentials(creds)
             .build();
 
-        // match mailer.send(&email){
-        //     Ok(_) => println!("Email sent"),
-        //     Err(e) => println!("Could not sent: {:?}", e)
-        // }
+        match mailer.send(&email){
+            Ok(_) => println!("Email sent"),
+            Err(e) => println!("Could not sent: {:?}", e)
+        }
 
     }
 
